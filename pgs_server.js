@@ -1,5 +1,5 @@
 // Backend - Node.js with Express & PostgreSQL
-
+require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
@@ -43,10 +43,6 @@ app.post('/users/register',authMiddleware, async (req, res) => {
     try {
         const { name, username, password, role } = req.body;
         
-        console.log(req.body);
-        console.log(req.user)
-        
-    
         const existingUser = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
         if (existingUser.rows.length > 0) {
             return res.status(400).json({ message: 'Username already exists' });
@@ -55,7 +51,7 @@ app.post('/users/register',authMiddleware, async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         await pool.query('INSERT INTO users (name, username, password, role) VALUES ($1, $2, $3, $4)', [name, username, hashedPassword, role]);
 
-        res.json({ message: 'User registered successfully' });
+        res.json({ message: 'Account registered successfully' });
     } catch (error) {
         console.error('Registration error:', error);
         res.status(500).json({ message: 'Server error' });
@@ -65,6 +61,7 @@ app.post('/users/register',authMiddleware, async (req, res) => {
 // Login Route
 app.post('/login', async (req, res) => {
     try {
+
         const { username, password } = req.body;
         const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
         
@@ -84,8 +81,36 @@ app.post('/login', async (req, res) => {
 
         res.json({ message: 'Login successful', token, role: user.role });
     } catch (error) {
+        localStorage.clear();
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+
+app.get('/statistics', async (req, res) => {
+    try {
+        const { timeframe } = req.query; // week, month, year
+
+        let query = "";
+        if (timeframe === "week") {
+            query = `SELECT DATE_TRUNC('week', extracted_at) AS period, COUNT(*) as total_items 
+                     FROM warehouse_log GROUP BY period ORDER BY period DESC;`;
+        } else if (timeframe === "month") {
+            query = `SELECT DATE_TRUNC('month', extracted_at) AS period, COUNT(*) as total_items 
+                     FROM warehouse_log GROUP BY period ORDER BY period DESC;`;
+        } else if (timeframe === "year") {
+            query = `SELECT DATE_TRUNC('year', extracted_at) AS period, COUNT(*) as total_items 
+                     FROM warehouse_log GROUP BY period ORDER BY period DESC;`;
+        } else {
+            return res.status(400).json({ message: "Invalid timeframe" });
+        }
+
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Error fetching statistics:", error);
+        res.status(500).json({ message: "Server error" });
     }
 });
 
