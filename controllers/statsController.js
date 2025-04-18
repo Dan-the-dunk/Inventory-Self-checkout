@@ -1,57 +1,59 @@
-// backend/controllers/statsController.js
 const pool = require('../config/db');
 
 exports.getStatistics = async (req, res) => {
     try {
-        const { timeframe } = req.query; // Expected: week, month, year
+        const { timeframe, status } = req.query; // timeframe: daily, week, month, year; status: passed or failed
 
-        let query = "";
-        let groupBy = "";
+        if (!timeframe) {
+            return res.status(400).json({ message: "Missing timeframe parameter. Use 'daily', 'week', 'month', or 'year'." });
+        }
+        if (status !== 'passed' && status !== 'failed') {
+            return res.status(400).json({ message: "Invalid or missing status parameter. Use 'passed' or 'failed'." });
+        }
 
-        // Determine the grouping based on the timeframe query parameter
-        switch (timeframe?.toLowerCase()) { // Use optional chaining and lowercase for robustness
+        let groupBy, dateFormat;
+        switch (timeframe.toLowerCase()) { 
+            case "daily":
+                groupBy = "DATE_TRUNC('day', start_time)";
+                dateFormat = "YYYY-MM-DD";
+                break;
             case "week":
-                groupBy = "DATE_TRUNC('week', extracted_at)";
+                // For a week, group by day for more granularity
+                groupBy = "DATE_TRUNC('day', start_time)";
+                dateFormat = "YYYY-MM-DD";
                 break;
             case "month":
-                groupBy = "DATE_TRUNC('month', extracted_at)";
+                // For a month, group by week (ISO week format)
+                groupBy = "DATE_TRUNC('week', start_time)";
+                dateFormat = "IYYY-IW";
                 break;
             case "year":
-                groupBy = "DATE_TRUNC('year', extracted_at)";
+                // For a year, group by month
+                groupBy = "DATE_TRUNC('month', start_time)";
+                dateFormat = "YYYY-MM";
                 break;
             default:
-                // Return an error if the timeframe is missing or invalid
-                return res.status(400).json({ message: "Invalid or missing timeframe parameter. Use 'week', 'month', or 'year'." });
+                return res.status(400).json({ message: "Invalid timeframe parameter. Use 'daily', 'week', 'month', or 'year'." });
         }
 
-        // Construct the SQL query
-        // Ensure the 'extracted_at' column exists and is indexed in your 'warehouse_log' table for better performance.
-        query = `
+        const query = `
             SELECT 
-                ${groupBy} AS period, 
-                COUNT(*) as total_items 
+                to_char(${groupBy}, '${dateFormat}') AS period,
+                COUNT(*) AS total_items
             FROM 
-                warehouse_log 
+                warehouse_stat
             WHERE 
-                extracted_at IS NOT NULL -- Optional: filter out null dates if necessary
+                status = $1
             GROUP BY 
-                period 
+                period
             ORDER BY 
-                period DESC;
+                period ASC;
         `;
 
-        const result = await pool.query(query);
-        res.status(200).json(result.rows); // Send 200 OK with the data
-
+        const result = await pool.query(query, [status]);
+        res.status(200).json(result.rows);
     } catch (error) {
         console.error("Error fetching statistics:", error);
-
-        // Check for specific database errors, like a missing table
-        if (error.code === '42P01') { // 'undefined_table' error code in PostgreSQL
-            return res.status(500).json({ message: "Statistics data source (warehouse_log table) not found." });
-        }
-
-        // General server error fallback
         res.status(500).json({ message: "Server error while fetching statistics" });
     }
 };

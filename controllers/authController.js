@@ -10,7 +10,7 @@
              return res.status(403).json({ message: 'Access denied: Admins only' });
         }
         try {
-            const { name, username, password, role } = req.body;
+            const { name, username, password, email, role, area } = req.body;
             // ... (rest of your registration logic: check existing user, hash password, insert) ...
              const existingUser = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
              if (existingUser.rows.length > 0) {

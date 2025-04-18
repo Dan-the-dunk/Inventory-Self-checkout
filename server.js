@@ -5,6 +5,7 @@
     const pool = require('./config/db'); // Import the pool (optional, if needed directly here)
     const authRoutes = require('./routes/authRoutes');
     const statsRoutes = require('./routes/statsRoutes'); // Assuming you create this too
+    const workerRoutes = require('./routes/workerRoutes'); // Assuming you create this too
 
     const app = express();
 
@@ -15,6 +16,7 @@
     // Routes
     app.use('/auth', authRoutes); // Prefix auth routes with /auth (e.g., /auth/login)
     app.use('/api', statsRoutes); // Example prefix for stats (e.g., /api/statistics)
+    app.use('/workers', workerRoutes); // Example prefix for workers (e.g., /workers/:id)
     // app.use('/api/workers', workerRoutes); // You'll add this later
 
     // Basic Root Route (optional)
